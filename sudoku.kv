@@ -1,0 +1,71 @@
+#:kivy 1.8.0 
+
+#:set ROOT_BKG_COL (1, 1, 1, 1)
+
+#:set FIELD_LOCKED_BKG_COL (.9, .9, .5, .5)
+#:set FIELD_LOCKED_COL (0, 0, 0, 1)
+
+#:set FIELD_UNLOCKED_BKG_COL (1, 1, 1, 0)
+#:set FIELD_UNLOCKED_COL (.1, .1, .3, 1)
+
+#:set BUBBLE_BTN_ACTIVE (1, 1, 1, .9)
+#:set BUBBLE_BTN_INACTIVE (.5, .5, .5, .5)
+#:set BUBBLE_MODE_BTN_VAL (0, 0, 1, .6)
+#:set BUBBLE_MODE_BTN_CANDIDATES (1, 0, 0, .6)
+
+
+#:set CANDIDATE_COL (0, .2, .2, 1)
+
+#:set EMPTY 0
+
+# grid layout
+<Grid>:
+	canvas:
+		Color:
+			rgb: ROOT_BKG_COL
+		Rectangle:
+			pos: self.pos
+			size: self.size
+
+# field 
+<Field>
+	value: 0
+	candidates: []
+	color: FIELD_LOCKED_COL if self.locked else FIELD_UNLOCKED_COL
+	font_size: str(self.size[0] - 15) + 'sp'  
+    canvas.before:
+        Color:
+            rgba: FIELD_LOCKED_BKG_COL if self.locked else FIELD_UNLOCKED_BKG_COL
+        Rectangle:
+            pos: self.pos
+            size: self.size
+         
+<Input_Bubble>
+	mode: ''   
+
+<BubbleButton>
+	active: True
+	font_size: str(self.size[0] - 15) + 'sp'
+	color: BUBBLE_BTN_ACTIVE if self.active else BUBBLE_BTN_INACTIVE
+
+<Redo_Btn>
+	active: not self.grid.history.i_am_at_top()
+	
+<Undo_Btn>
+	active: not self.grid.history.i_am_at_bottom()
+	
+<Clr_Btn>
+	active: not self.grid.active_field_is_empty()
+	
+<BubbleMode_Btn>
+	font_size: str(self.size[0] - 15) + 'sp'
+	color: BUBBLE_MODE_BTN_VAL if self.bubble.mode == 'value' else BUBBLE_MODE_BTN_CANDIDATES
+
+<Candidate_Label>
+	color: (0,0,0,1)
+	canvas.before:
+		Color:
+			rgba: (0, 0, 0, 0)
+		Rectangle:
+			pos: self.pos
+			size: self.size

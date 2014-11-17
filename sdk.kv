@@ -1,0 +1,109 @@
+#: import math math
+#: import GridLayout kivy.uix.gridlayout.GridLayout
+
+# field 
+<Field>:
+	id: field
+	canvas.before:
+		# field background
+        Color:
+            rgba: self.bkg_col
+        Rectangle:
+            pos: self.pos
+            size: self.size
+        # field highlighting
+        Color:
+        	rgba: self.hl_col
+        Rectangle:
+        	pos: self.pos
+        	size: self.size
+
+	Label:
+		pos: field.pos
+		size: field.size
+		font_size: self.size[1] * field.txt_scale
+		text: field.text
+		color: field.txt_col
+		
+	Candidate_Grid:
+		id: cnd_grid
+		pos: field.pos
+		size: field.size
+		cols: math.floor(math.sqrt(field.grid.sdk_size))
+		padding: [1]
+		
+		
+<Candidate_Label>:
+	font_size: self.size[1] * self.txt_scale
+	color: self.txt_col
+	canvas.before:
+    	Color:
+        	rgba: self.hl_col
+		Rectangle:
+            pos: self.pos
+            size: self.size
+		
+
+<Grid>:
+	id: grid_widget
+	canvas.before:
+    	Color:
+        	rgba: self.bkg_col
+		Rectangle:
+            pos: self.pos
+            size: self.size
+	GridLayout:
+		id: grid
+		size: grid_widget.size
+		cols: grid_widget.sdk_size
+ 
+<Input_Bubble>:
+	id: bubble
+	size: self.input_field.grid.size[0], self.input_field.grid.size[1] / 2.3
+	grid: self.input_field.grid
+	f_idx: self.input_field.index
+	threshold: self.grid.sdk_size**2 / 2
+	bottom_pos: 0, 0
+	top_pos: 0, self.grid.size[1] - self.size[1]
+	pos: self.bottom_pos if self.f_idx <= self.threshold else self.top_pos
+	show_arrow: False
+	block_cols: self.grid.box_size[0]
+	
+	BoxLayout:
+		spacing: 10
+	
+		Carousel:
+			GridLayout:
+				id: value_block
+				cols: 3
+				
+			GridLayout:
+				id: candidates_block
+				cols: 3
+		
+		GridLayout:
+			id: func_block
+			cols: 3
+
+<B_Btn>:
+	active: False
+	color: self.txt_col_active if self.active else self.txt_col_inactive
+	font_size: self.size[1]
+	
+<Val_Btn, Candidate_Btn>:
+	text: str(self.index + 1)
+
+<Clr_Btn>:
+	text: self.txt
+	
+<Undo_Btn>:
+	text: self.txt
+	
+<Redo_Btn>
+	text: self.txt
+	
+<Solve_Btn>
+	text: self.txt
+	
+<Show_Candidates_Btn>
+	text: self.txt

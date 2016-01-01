@@ -1,13 +1,34 @@
 import itertools
+import hint
+import constraint
 
-DIFF_NAKED_SINGLE = 1
         
 class Node:
-    def __init__(self, col=-1, row=-1, ntype='r'):
+    
+    def __init__(self, col=-1, row=-1, sdk_size=9):
         self.y = row
         self.x = col
-        self.ntype = ntype
+        self.sdk_size = sdk_size
+        
+    
+    def get_val(self):
+        return self.y % self.sdk_size
+    
 
+
+class HeaderNode(Node):
+    
+    const = None
+    
+    def get_const(self):
+        return self.const
+    
+    
+    def get_house(self):
+        return self.const.get_house()
+    
+    
+        
 class Walk_Matrix:
     walk = {'right': lambda n: n.right,
             'left' : lambda n: n.left,
@@ -29,22 +50,28 @@ class Walk_Matrix:
         return self.step
         
         
-class DLX():
-    def __init__(self, dlx_size=(0, 0), constraints=[], candidates=()):
+class SDK_DLX():
+    def __init__(self, size=9, constraints={}, candidates=()):
+        self.size = size
+        self.size_sqr = size ** 2
         self.tmp_solution = []
         self.solution = []
         self.constraints = constraints
         self.n_constraints = len(constraints)
-        self.n_cols = dlx_size[0]
-        self.n_rows = dlx_size[1]
+        self.constraint_table = {c.name: c for c in self.constraints}
+        self.n_cols = self.size_sqr * len(constraints)
+        self.n_rows = self.size ** 3
         self.create_empty_matrix()
         self.put_to_solution(*candidates)
         self.solution_count = 0
+
+        
         
     def link_horizontal(self, array):
             for i in range(len(array)):
                 array[i].left = array[i - 1]
                 array[i - 1].right = array[i]
+
 
     def link_vertical(self, array):
             for i in range(len(array)):
@@ -52,34 +79,39 @@ class DLX():
                 array[i - 1].down = array[i]
                 array[i].col = array[0]
                 
+                
     def create_empty_matrix(self):
         # set up matrix, init header nodes (+1 root node at the end)
-        self.matrix = [[Node(x, 0, 'h')] for x in range(self.n_cols + 1)]
-        # link header nodes horizontaly
+        self.matrix = [[HeaderNode(x, 0, self.size)] 
+                       for x in range(self.n_cols + 1)]
+        # link header nodes horizontally
         self.link_horizontal([col[0] for col in self.matrix])
         # create pointer to root node
         self.root_node = self.matrix[-1][0]
-        self.root_node.const_num = None
+        self.root_node.const = constraint.Constraint()
         # set up row buffer
         row_buffer = [None] * len(self.constraints)
         # for all rows in sparse matrix
         for y in range(self.n_rows):
             # fill buffer with one node per constraint 
-            for n in range(len(self.constraints)):
-                x = self.constraints[n](y, n)
-                row_buffer[n] = Node(x, y)
-                self.matrix[x].append(row_buffer[n])
-                # add constraint number to column header
-                # (will be writen several times during initialization)
-                self.matrix[x][0].const_num = n
+            for i, const in enumerate(self.constraints):
+                x = const.get_x(y)
+                row_buffer[i] = Node(x, y)
+                self.matrix[x].append(row_buffer[i])
+                # add constraint name and number to column header
+                # (will be written several times during initialization)
+                self.matrix[x][0].const = const
+                self.matrix[x][0].const_i = const.get_const_number(x)
+                self.matrix[x][0].n_const = i
             # create horizontal links for the row
             self.link_horizontal(row_buffer)
         # in every column..
         for col in self.matrix:
             # ..create vertical links, add column pointers
             self.link_vertical(col)
-            # ..add colum size to each header node
+            # ..add column size to each header node
             col[0].col_size = len(col) - 1
+
 
     def cover(self, c):
         c.left.right = c.right
@@ -90,14 +122,16 @@ class DLX():
                 j.down.up = j.up
                 j.col.col_size -= 1
 
+
     def uncover(self, c):
         for i in Walk_Matrix(c, direction='up'):
             for j in Walk_Matrix(i, direction='left'):
                 j.down.up = j
                 j.up.down = j
                 j.col.col_size += 1
-        c.right.left = c
+        c.right.left = c 
         c.left.right = c    
+        
         
     def search(self, limit=1):
         # a solution is found when all columns are covered
@@ -123,42 +157,54 @@ class DLX():
         self.uncover(c)
         return self.solution
 
+
     def put_to_solution(self, *candidates):
         if candidates:
             for y in candidates:
                 # get x for first constraint
-                x = self.constraints[0](y, 0)
+                x = self.constraint_table['cell'].get_x(y)
                 # search row
-                r = self.matrix[x][1]
-                while r.y != y: r = r.down
-                self.tmp_solution.append(r)
-                self.cover(r.col)
-                for j in Walk_Matrix(r, direction='right'):
-                    self.cover(j.col)
+                r = self.root_node.right
+                for row in Walk_Matrix(self.root_node, direction='right'):
+                    if row.x > x:
+                        raise Exception('column already covered!!')
+                    if row.x == x:
+                        for r in Walk_Matrix(row, direction='down'):
+                            if r.y > y:
+                                raise Exception('node already covered!!')
+                            if r.y == y:
+                                self.tmp_solution.append(r)
+                                self.cover(r.col)
+                                for j in Walk_Matrix(r, direction='right'):
+                                    self.cover(j.col)
+                                break
+                        break
+                    
                     
     def __repr__(self):
-        ncol = range(len(self.matrix))
-        nrow = range(self.size ** 3)
-        m = [['  ' for _ in nrow] for _ in ncol]
+        print('fucked up since constraints are stored in a dict')
+        '''
+        # header works only for sdk 9x9
+        size = 9
+        s = ('\t' + 'r\t' * size**2 + 'v\t' * size**2 * 3 + '\n' +
+             '\t' + '\t'.join([str(i // size % size) for i in range(size**2 * 4)]) + '\n' +
+             '\t' + 'c\t' * size**2 + 'r\t' * size**2 + 'c\t' * size**2 + 'b\t' * size**2 + '\n' +
+             '\t' + '\t'.join([str(i % size) for i in range(size**2 * 4)]) + '\n'
+             )
+        m = [['\t' for _ in range(self.n_rows)] for _ in range(self.n_cols)]
         for c in Walk_Matrix(self.root_node, direction='right'):
             for r in Walk_Matrix(c, direction='down'):
-                m[r.x][r.y] = str(r.y)
-        s = ''
-        for y in nrow:
-            for x in ncol:
+                m[r.x][r.y] = str(1) + '\t'
+        for y in range(self.n_rows):
+            s += ('r' + str(y // size**2 % size) +
+                  'c' + str(y // size % size) +
+                  'v' + str(y % size) + '\t'
+                  )
+            for x in range(self.n_cols):
                 s += m[x][y]
             s += '\n'
         return s
-    
-    
-class SDK_DLX(DLX):
-
-    
-    def __init__(self, size, dlx_size=(0, 0), constraints=[], candidates=()):
-        DLX.__init__(self, dlx_size, constraints, candidates)
-        self.size = size
-        self.size_sqr = size ** 2
-
+    '''
     
     def get_candidates(self):
         cands = set()
@@ -169,19 +215,19 @@ class SDK_DLX(DLX):
 
     
     # walk constraint(s)
-    def walk_constraint(self, *const, start=None):
-        for n in const:
+    def walk_constraint(self, *constraints, start=None):
+        for name in constraints:
             # goto first node
             if start:
-                x = start
+                x = start.col
             else:
                 x = self.root_node
-            while x.const_num != n:
+            while x.const.name != name:
                 x = x.right 
                 if x == self.root_node:
                     raise Exception('constraint is empty!!')
             # walk constraint
-            while x.const_num == n:
+            while x.const.name == name:
                 yield x
                 x = x.right
 
@@ -195,7 +241,7 @@ class SDK_DLX(DLX):
                 y = y.down
 
                 
-    def walk_set_of_cols(self, cols):
+    def walk_set_of_cols(self, cols): 
         for col in cols:
             y = col.down
             while y.ntype != 'h':
@@ -203,37 +249,59 @@ class SDK_DLX(DLX):
                 y = y.down
 
 
+    def get_house(self, c):
+        const_name = c.col.const.name
+        while c.col.const.name != 'cell':
+            c = c.left
+        x = c.x - self.constraint_table['cell'].offset
+        return self.constraint_table[const_name].get_house(x)
+
+    def get_neighbor(self, node, const_name):
+        while node.col.const.name != const_name:
+            node = node.right
+        return node 
+
     # search naked singles
     def search_naked_singles(self):
-        for c in self.walk_constraint(0):
+        for c in self.walk_constraint('cell'):
             if c.col_size == 1:
-                members = c.down.y
-                house = [c.down.y]
-                yield dict(members=members, house=house)
+                members = [c.down.y]
+                house = self.get_house(c.down)
+                yield hint.NakedSingle(members=members, houses=[house])
         
         
     # search hidden singles    
-    def hidden_singles(self):
-        output = []
-        for c in self.walk_constraint(1, 2, 3):
-            if c.col_size == 1:
-                output.append(c.down)
-        return output
+    def search_hidden_singles(self):
+        for const_name in self.constraint_table:
+            if const_name == 'cell':
+                continue
+            for c in self.walk_constraint(const_name):
+                if c.col_size == 1:
+                    members = [c.down.y]
+                    house = house = self.get_house(c.down)
+                    yield hint.HiddenSingle(members=members, houses=[house])
 
     
     # search locked candidates
-    def locked_candidates(self):
-        output = []
-        # search for all types of locked candidates
-        d = {'row-box': (1, lambda x: x.right.right, 'row-box'),
-             'col-box': (2, lambda x: x.right, 'col-box'),
-             'box-row': (3, lambda x: x.left.left, 'box-row'),
-             'box-col': (3, lambda x: x.left, 'box-col')}
-        for entry in d.values():
+    # assumed, there's a "box-constraint"
+    def search_locked_candidates(self):
+        
+        # create map
+        tmp_list = tuple(s for s in self.constraint_table 
+                         if (s != 'cell' and s != 'box'))
+        c_map = {s: ('box', ) for s in tmp_list}
+        c_map['box'] = tmp_list      
+        
+        for const_a in c_map:
             # walk constraint
-            for c in self.walk_constraint(entry[0]):
-                if c.col_size > 1:
-                    tmp = [entry[1](n) for n in Walk_Matrix(c, 'down')]
+            for c in self.walk_constraint(const_a):
+                if c.col_size <= 1:
+                    continue
+                members = []
+                obsoletes = []
+                for const_b in c_map[const_a]:
+                    tmp = [self.get_neighbor(n, const_b)
+                           for n in Walk_Matrix(c, 'down')]
                     # if all x are the same?
                     if all(n.x == tmp[0].x for n in tmp):
                         # walk array b[0].col
@@ -241,71 +309,168 @@ class SDK_DLX(DLX):
                             # if n not in array
                             if not n in tmp:
                                 # its a locked candidate
-                                # print(entry[2], ':', n.y//9, ',',n.y%9)
-                                output.append(n)
-        return output
+                                members += [t.y for t in tmp]
+                                obsoletes.append(n.y)
+                                house2 = self.get_house(c.down)
+                                house1 = self.get_house(n)
+                        if obsoletes:
+                            yield hint.LockedCandidate(obsoletes=obsoletes,
+                                                       members=members,
+                                                       houses=[house1, house2])
     
     
-    # search in all houses (row/col/box)
-    # returns an array with a set containing the empty cells for every house
-    def get_mates(self):
-        mates = [set() for __ in range(self.size * (self.n_constraints - 1))]
-        for const in range(1, self.n_constraints):
-            for node in self.walk_constraint(const):
-                house = node.x % self.size + ((const - 1) * self.size)
-                for cell in Walk_Matrix(node, 'down'):
-                    if cell.ntype == 'h':
-                        break
-                    for __ in range(const):
-                        cell = cell.left
-                    mates[house].add(cell.col)
-        return mates
+    def get_all_houses(self, min_cands=1):
+        houses = {k: tuple(set() for __ in range(self.size))
+                  for k in self.constraint_table}
+        for h in self.walk_constraint('cell'):
+            if h.col_size >= min_cands:
+                for cand in Walk_Matrix(h, 'down'):
+                    for c in Walk_Matrix(cand, 'right'):
+                        houses[c.col.const.name][c.col.const_i].add(h)
+        return houses
         
+    
+    
+    def search_naked_subset_new(self, n):
+        members = []
+        for cell in self.walk_constraint('cell'):
+            if cell.col_size > n or cell.col_size < 2:
+                continue
+            for cand in Walk_Matrix(cell, 'down'):
+                members.append(cand)
+                
+                for const in Walk_Matrix(cand, 'right'):
+                    for c in Walk_Matrix(const, 'down'):
+                        m = self.get_neighbor(c, 'cell')
+                        if m.col.col_size < 2:
+                            continue
+                        
+                        
+                        
         
-    # search naked subsets
-    def naked_subset(self, n):
-        output = []
-        for house in self.get_mates():
-            if len(house) > n:
-                for subset in itertools.combinations(house, n):
-                    values = {y.y % self.size for y in self.walk_set_of_cols(subset)}
-                    if len(values) == n:
-                        # subset found
-                        for cell in house:
-                            # search for obsolete candidates
-                            if cell not in subset:
-                                for candidate in Walk_Matrix(cell, 'down'):
-                                    if candidate.y % self.size in values:
-                                        # push them to output
-                                        output.append(candidate)
-        return output
+    def search_naked_subset(self, n):
 
+        # get all houses
+        houses = self.get_all_houses(min_cands=2)
+        for const in houses:
+            for house in houses[const]:
+                # try all subset combinations
+                for subs in itertools.combinations(house, n):
+                    # collect values
+                    subs_cands = [list(Walk_Matrix(h, 'down')) for h in subs]
+                    subs_cands = set(itertools.chain(*subs_cands))
+                    values = {cand.get_val() for cand in subs_cands}
+                    # how many different values in subset?
+                    if len(values) != n:
+                        continue
+                    # collect obsoletes
+                    house_cands = [list(Walk_Matrix(h, 'down')) for h in house]
+                    house_cands = set(itertools.chain(*house_cands))
+                    diff_cands = house_cands - subs_cands
+                    obsoletes = [c.y for c in diff_cands 
+                                 if c.get_val() in values]
+                    # if some obsolete candidates are found, its a naked subset
+                    if obsoletes:
+                        hint_house = self.constraint_table[const].\
+                                                get_house(subs[0].x)
+                        yield hint.NakedSubset(obsoletes=obsoletes,
+                            members=[c.y for c in subs_cands],
+                            houses=[hint_house])
+                    
 
     # search hidden subsets
-    def hidden_subset(self, n):
-        output = []
-        get_val = lambda n: n.y % self.size
-        for house in self.get_mates():
-            if len(house) > n:
-                # per every cell in house collect candidates
-                ch = {y for y in self.walk_set_of_cols(house)}
-                for subset in itertools.combinations(house, n):                  
-                    # per every cell in subset collect candidates
-                    cs = {y for y in self.walk_set_of_cols(subset)}
-                    # collect candidate values from the subset cells
-                    subset_values = {get_val(n) for n in cs}
-                    # collect candidate values from the cells not belonging to subset
-                    other_values = {get_val(n) for n in ch - cs}
+    def search_hidden_subset(self, n):
+        
+        # get all houses
+        houses = self.get_all_houses()
+        for const in houses:
+            for house in houses[const]:
+                # collect candidates form house
+                house_cands = [list(Walk_Matrix(h, 'down')) for h in house]
+                house_cands = set(itertools.chain(*house_cands))
+                for subs in itertools.combinations(house, n):                  
+                    if {h.x for h in subs} == {42, 43}:
+                        pass
+                    # collect candidates from subset
+                    subs_cands = [list(Walk_Matrix(h, 'down')) for h in subs]
+                    subs_cands = set(itertools.chain(*subs_cands))
+                    subs_values = {n.get_val() for n in subs_cands}
+                    # collect candidate values from the cells
+                    # who doesn't belonging to subset
+                    other_values = {n.get_val() 
+                                    for n in house_cands - subs_cands}
                     # collect candidate values who exist only in subset
-                    exclusive_in_subset = subset_values - other_values 
+                    v_exclusive_in_subset = subs_values - other_values 
                     # count them
-                    if len(exclusive_in_subset) == n:
-                        # subset found!
-                        # push obsolete candidates to output
-                        output += list(filter(lambda n: get_val(n) not in exclusive_in_subset, cs))
-                        print(output)
-        return output
+                    if len(v_exclusive_in_subset) == n:
+                        # subset found
+                        # search for obsoletes
+                        obsoletes = [n.y for n in subs_cands 
+                                if n.get_val() not in v_exclusive_in_subset]
+                        if obsoletes:
+                            # push members to output
+                            members = [n.y for n in subs_cands
+                                       if n.get_val() in v_exclusive_in_subset]
+                            # get house
+                            h = self.constraint_table[const].\
+                                                get_house(subs[0].x)
+                            yield hint.HiddenSubset(obsoletes=obsoletes,
+                                                    members=members,
+                                                    houses=[h])
+                            
+                            
+    def search_fish(self,n=2):                        
+        pass
+        # basic fish : row - col, col - row
+        # franken fish: row/box - col/box, col/box - row/box
+        # mutant fish: row/col/box - row/col/box
+        
+        # take n base-sets
+        # oberlap?
+        #    -> endo fins?
+        
+        # find n cover-sets
+        # overlap?
+        #    -> cannibalism?
+        # cover all base candidates?
+        #    -> 
+        #
+        
+
+        get_values = lambda h: {cand.get_val() for cell in h 
+                                        for cand in Walk_Matrix(cell, 'down')}
+                
+        # get all houses
+        houses = self.get_all_houses()
+        houses_flat =[]
+        for const in houses:
+            for house in houses[const]:
+                houses_flat.append(dict(const=const, cells=house))
+        
+        # choose base-sets
+        for base_set in tuple(itertools.combinations(houses_flat, n)):
+            
+            # choose value
+            # the value must occur in every house from the base-set
+            bs_values = set.intersection(*[get_values(house['cells']) 
+                                           for house in base_set])
+            if base_set[0]['const'] == 'row' and base_set[1]['const'] == 'row':
+                pass
+            
+            # check overlapping
+            pass
+        
+        yield hint.Fish()
+                
+        
+        
     
+    def print_cand(self, y):
+        cell = y // 9
+        val = y % 9
+        print('c', cell, ', v', val)
     
+   
+
 if __name__ == '__main__':
     pass

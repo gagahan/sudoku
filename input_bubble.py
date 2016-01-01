@@ -51,6 +51,10 @@ class Val_Btn(B_Btn):
         '''
         wrong candidates depression must be implemented here!!
         '''
+        # if auto-cand mode
+        if not self.grid.candidate_exist(self.field.index, self.index + 1):
+            self.supressed = True
+            
         if not self.supressed:
             self.active = True
           
@@ -66,13 +70,12 @@ class Candidate_Btn(Val_Btn):
         '''
         wrong candidates depression must be implemented here!!
         '''
-        cands = self.grid.candidates
-        field_idx = self.field.index
         
-        if (field_idx in cands and self.index + 1 in cands[field_idx]):
+        if self.grid.candidate_exist(self.field.index, self.index + 1):
             self.active = True
         else:
             self.active = False
+
 
 class Undo_Btn(B_Btn):
     txt = UNDO_BTN_TXT

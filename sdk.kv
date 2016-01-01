@@ -44,7 +44,7 @@
             size: self.size
 		
 
-<Grid>:
+<GridView>:
 	id: grid_widget
 	canvas.before:
     	Color:
@@ -54,8 +54,13 @@
             size: self.size
 	GridLayout:
 		id: grid
+		pos: grid_widget.pos
 		size: grid_widget.size
 		cols: grid_widget.sdk_size
+ 
+ 
+<MenuButtonsView>:
+	id: menu
  
 <Input_Bubble>:
 	id: bubble
@@ -63,8 +68,8 @@
 	grid: self.input_field.grid
 	f_idx: self.input_field.index
 	threshold: self.grid.sdk_size**2 / 2
-	bottom_pos: 0, 0
-	top_pos: 0, self.grid.size[1] - self.size[1]
+	bottom_pos: self.grid.pos
+	top_pos: self.grid.pos[0], self.grid.pos[1] + self.grid.size[1] - self.size[1]
 	pos: self.bottom_pos if self.f_idx <= self.threshold else self.top_pos
 	show_arrow: False
 	block_cols: self.grid.box_size[0]
@@ -86,7 +91,6 @@
 			cols: 3
 
 <B_Btn>:
-	active: False
 	color: self.txt_col_active if self.active else self.txt_col_inactive
 	font_size: self.size[1]
 	

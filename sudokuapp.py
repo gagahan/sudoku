@@ -36,7 +36,7 @@ class SDK_App(App):
     def build(self):
         sdk = sudoku.Sudoku9x9(ns1)
         ctrl = controller.Controller(sdk=sdk)
-        grid = gui.Grid(ctrl)
+        grid = gui.GridView(ctrl)
         ctrl.add_view(grid)
         ctrl.update_views()
         grid.lock_fields()
